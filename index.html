@@ -771,7 +771,7 @@
         <div class="page-heading">
           <div>
             <h1 id="pageTitle">Dashboard Overview</h1>
-            <p class="subtitle">Attendance review, team approvals, and payroll synchronization for May 2026.</p>
+            <p class="subtitle" id="pageSubtitle">Attendance review, team approvals, and payroll synchronization for May 2026.</p>
           </div>
           <div class="filters">
             <select class="select" aria-label="Department filter">
@@ -791,7 +791,7 @@
           </div>
         </div>
 
-        <section class="cards" aria-label="Dashboard statistics">
+        <section class="cards" id="statsCards" aria-label="Dashboard statistics">
           <article class="metric">
             <div class="metric-label">Today Present <span class="trend">+4%</span></div>
             <div>
@@ -829,7 +829,7 @@
           </article>
         </section>
 
-        <section class="grid">
+        <section class="grid" id="mainGrid">
           <article class="panel">
             <div class="panel-header">
               <div>
@@ -1005,9 +1005,377 @@
   <script>
     const toast = document.querySelector("#toast");
     const pageTitle = document.querySelector("#pageTitle");
+    const pageSubtitle = document.querySelector("#pageSubtitle");
+    const statsCards = document.querySelector("#statsCards");
+    const mainGrid = document.querySelector("#mainGrid");
     const navButtons = document.querySelectorAll(".nav-button");
     const search = document.querySelector("#employeeSearch");
-    const rows = document.querySelectorAll("#attendanceRows tr");
+
+    const metricData = {
+      "Dashboard Overview": [
+        ["Today Present", "218", "out of 236 employees", "+4%", ""],
+        ["Pending Approvals", "18", "leave and correction requests", "12", "warning"],
+        ["Late Arrivals", "9", "3 require team lead notes", "Review", "warning"],
+        ["Absences", "5", "2 unconfirmed absences", "Alert", "danger"],
+        ["Payroll Sync", "Ready", "next export: Friday 5:00 PM", "82%", ""],
+      ],
+      "Employee Attendance": [
+        ["Present", "218", "employees checked in today", "+4%", ""],
+        ["Late", "9", "arrived after 8:30 AM", "Review", "warning"],
+        ["Absent", "5", "2 still unconfirmed", "Alert", "danger"],
+        ["On Leave", "31", "approved leave records", "Synced", ""],
+        ["Corrections", "7", "waiting for team lead", "Pending", "warning"],
+      ],
+      "Leave Requests": [
+        ["Pending Leave", "12", "requests need approval", "Action", "warning"],
+        ["Approved", "31", "leave records this month", "Synced", ""],
+        ["Rejected", "3", "requests declined", "Closed", "danger"],
+        ["Sick Leave", "8", "medical leave records", "May", ""],
+        ["Annual Leave", "23", "planned leave records", "May", ""],
+      ],
+      "Overtime Records": [
+        ["Total Overtime", "74.5", "approved and pending hours", "May", ""],
+        ["Pending Hours", "18.2", "need team lead approval", "Review", "warning"],
+        ["Approved Hours", "56.3", "ready for payroll", "Synced", ""],
+        ["Highest Team", "Ops", "31.5 overtime hours", "Watch", "warning"],
+        ["Payroll Impact", "$1.8k", "estimated overtime pay", "Ready", ""],
+      ],
+      "Payroll Integration": [
+        ["Payroll Sync", "82%", "May file readiness", "Ready", ""],
+        ["Records", "236", "attendance records mapped", "May", ""],
+        ["Unresolved", "18", "items block final export", "Review", "warning"],
+        ["Overtime", "74.5", "hours included", "Pending", "warning"],
+        ["Next Export", "5 PM", "Friday cutoff", "Today", ""],
+      ],
+      "Reports": [
+        ["Monthly Report", "Ready", "attendance summary prepared", "May", ""],
+        ["Absence Report", "5", "employees listed", "Alert", "danger"],
+        ["Late Report", "9", "late arrival records", "Review", "warning"],
+        ["Payroll Export", "82%", "readiness report", "Ready", ""],
+        ["Downloads", "4", "available report types", "New", ""],
+      ],
+      "Employee Profiles": [
+        ["Employees", "236", "active employee profiles", "Active", ""],
+        ["Departments", "4", "Finance, Ops, Sales, Tech", "Live", ""],
+        ["Missing Data", "6", "profiles need updates", "Fix", "warning"],
+        ["Team Leads", "18", "approval owners", "Active", ""],
+        ["New Hires", "4", "added this month", "May", ""],
+      ],
+      "Settings": [
+        ["Workday Rule", "8:00", "standard clock-in time", "Set", ""],
+        ["Late Limit", "30m", "grace period", "Active", ""],
+        ["Approval Chain", "2", "lead then HR review", "Active", ""],
+        ["Payroll Cutoff", "Fri", "weekly export cutoff", "Set", ""],
+        ["Notifications", "On", "approval alerts enabled", "Live", ""],
+      ],
+    };
+
+    const subtitles = {
+      "Dashboard Overview": "Attendance review, team approvals, and payroll synchronization for May 2026.",
+      "Employee Attendance": "Review daily clock-in, clock-out, absence, lateness, and payroll status.",
+      "Leave Requests": "Approve, reject, and track leave requests before payroll processing.",
+      "Overtime Records": "Validate overtime hours and payroll impact before salary calculation.",
+      "Payroll Integration": "Sync approved attendance, leave, and overtime data into payroll.",
+      "Reports": "Generate attendance, absence, lateness, overtime, and payroll-ready reports.",
+      "Employee Profiles": "Manage employee details, department assignment, and approval ownership.",
+      "Settings": "Configure attendance rules, payroll cutoff, approval flow, and notifications.",
+    };
+
+    const views = {
+      "Dashboard Overview": () => dashboardView(),
+      "Employee Attendance": () => attendanceView(),
+      "Leave Requests": () => leaveView(),
+      "Overtime Records": () => overtimeView(),
+      "Payroll Integration": () => payrollView(),
+      "Reports": () => reportsView(),
+      "Employee Profiles": () => profilesView(),
+      "Settings": () => settingsView(),
+    };
+
+    function renderMetrics(section) {
+      statsCards.innerHTML = metricData[section].map(([label, value, note, tag, tone]) => `
+        <article class="metric">
+          <div class="metric-label">${label} <span class="trend ${tone}">${tag}</span></div>
+          <div>
+            <strong>${value}</strong>
+            <small>${note}</small>
+          </div>
+        </article>
+      `).join("");
+    }
+
+    function tablePanel(title, subtitle, headers, rows, action = "Filter") {
+      return `
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">${title}</h2>
+              <p class="panel-subtitle">${subtitle}</p>
+            </div>
+            <button class="secondary" type="button">${action}</button>
+          </div>
+          <table aria-label="${title}">
+            <thead>
+              <tr>${headers.map((header) => `<th>${header}</th>`).join("")}</tr>
+            </thead>
+            <tbody id="activeRows">
+              ${rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("")}
+            </tbody>
+          </table>
+        </article>
+      `;
+    }
+
+    function sidePanel(title, subtitle, content) {
+      return `
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <h2 class="panel-title">${title}</h2>
+              <p class="panel-subtitle">${subtitle}</p>
+            </div>
+          </div>
+          ${content}
+        </article>
+      `;
+    }
+
+    function person(initials, name, meta) {
+      return `
+        <div class="employee">
+          <span class="mini-avatar">${initials}</span>
+          <div><b>${name}</b><span>${meta}</span></div>
+        </div>
+      `;
+    }
+
+    function approvalItems(items) {
+      return `
+        <div class="approval-list" id="approvalList">
+          ${items.map(([name, type, detail]) => `
+            <div class="approval-item">
+              <div class="approval-top">
+                <div><b>${name}</b><span>${type}</span></div>
+                <span class="status pending">Pending</span>
+              </div>
+              <p>${detail}</p>
+              <div class="row-actions">
+                <button class="approve" type="button">Approve</button>
+                <button class="reject" type="button">Reject</button>
+                <button class="view" type="button">View</button>
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    function payrollPanel() {
+      return `
+        <div class="payroll">
+          <div class="sync-box">
+            <div class="sync-row">
+              <b>May payroll file</b>
+              <span class="status synced">82% ready</span>
+            </div>
+            <div class="progress" aria-label="Payroll readiness progress">
+              <span></span>
+            </div>
+          </div>
+          <div class="payroll-details">
+            <div class="detail-row"><span>Attendance records</span><b>236</b></div>
+            <div class="detail-row"><span>Approved leave</span><b>31</b></div>
+            <div class="detail-row"><span>Overtime hours</span><b>74.5</b></div>
+            <div class="detail-row"><span>Unresolved items</span><b>18</b></div>
+          </div>
+          <button class="primary" type="button" id="syncButton">↻ Sync Payroll Data</button>
+        </div>
+      `;
+    }
+
+    function dashboardView() {
+      return `
+        ${tablePanel("Employee Attendance Records", "Review clock-in, clock-out, overtime, and payroll status.", ["Employee", "Clock In", "Clock Out", "Overtime", "Status", "Payroll"], [
+          [person("SA", "Sokha Am", "HR-104 • Operations"), "08:02 AM", "05:08 PM", "0.5 hr", '<span class="status present">Present</span>', '<span class="status synced">Synced</span>'],
+          [person("DV", "Dara Vann", "FIN-221 • Finance"), "08:42 AM", "05:03 PM", "0 hr", '<span class="status late">Late</span>', '<span class="status pending">Pending</span>'],
+          [person("RP", "Rina Phal", "SAL-087 • Sales"), "Approved Leave", "Approved Leave", "0 hr", '<span class="status approved">Leave</span>', '<span class="status synced">Synced</span>'],
+          [person("KL", "Kosal Lim", "TEC-311 • Technology"), "--", "--", "0 hr", '<span class="status absent">Absent</span>', '<span class="status pending">Pending</span>'],
+          [person("CN", "Chan Nita", "OPS-176 • Operations"), "07:55 AM", "06:20 PM", "1.3 hr", '<span class="status present">Present</span>', '<span class="status pending">Pending</span>'],
+        ])}
+        <aside class="side-stack">
+          ${sidePanel("Pending Approvals", "Team lead decisions before payroll export.", approvalItems([
+            ["Dara Vann", "Attendance correction", "Employee forgot to clock in after morning client meeting."],
+            ["Chan Nita", "Overtime request", "1.3 hours overtime submitted for inventory system deployment."],
+            ["Kosal Lim", "Absence confirmation", "Team lead must confirm whether absence is unpaid or sick leave."],
+          ]))}
+          ${sidePanel("Payroll Integration", "Attendance data prepared for salary processing.", payrollPanel())}
+        </aside>
+      `;
+    }
+
+    function attendanceView() {
+      return `
+        ${tablePanel("Daily Attendance Review", "Focused view for clock records and exceptions.", ["Employee", "Department", "Clock In", "Clock Out", "Exception", "Action"], [
+          [person("SA", "Sokha Am", "HR-104 • Operations"), "Operations", "08:02 AM", "05:08 PM", '<span class="status present">None</span>', '<button class="view" type="button">Details</button>'],
+          [person("DV", "Dara Vann", "FIN-221 • Finance"), "Finance", "08:42 AM", "05:03 PM", '<span class="status late">Late</span>', '<button class="view" type="button">Correct</button>'],
+          [person("KL", "Kosal Lim", "TEC-311 • Technology"), "Technology", "--", "--", '<span class="status absent">Absent</span>', '<button class="view" type="button">Review</button>'],
+          [person("CN", "Chan Nita", "OPS-176 • Operations"), "Operations", "07:55 AM", "06:20 PM", '<span class="status present">Overtime</span>', '<button class="view" type="button">Approve</button>'],
+        ], "Today")}
+        <aside class="side-stack">
+          ${sidePanel("Attendance Alerts", "Records that need HR attention.", approvalItems([
+            ["Dara Vann", "Late arrival note", "Team lead must confirm client meeting reason."],
+            ["Kosal Lim", "Missing attendance", "No clock record found for today."],
+          ]))}
+          ${sidePanel("Attendance Rules", "Current company attendance settings.", `<div class="payroll-details payroll">
+            <div class="detail-row"><span>Standard clock-in</span><b>08:00 AM</b></div>
+            <div class="detail-row"><span>Late grace period</span><b>30 min</b></div>
+            <div class="detail-row"><span>Full day hours</span><b>8 hrs</b></div>
+          </div>`)}
+        </aside>
+      `;
+    }
+
+    function leaveView() {
+      return `
+        ${tablePanel("Leave Request Queue", "Approve or reject leave before payroll sync.", ["Employee", "Leave Type", "Date", "Days", "Status", "Decision"], [
+          [person("RP", "Rina Phal", "SAL-087 • Sales"), "Annual Leave", "May 17-18", "2", '<span class="status approved">Approved</span>', '<button class="view" type="button">View</button>'],
+          [person("DV", "Dara Vann", "FIN-221 • Finance"), "Sick Leave", "May 16", "1", '<span class="status pending">Pending</span>', '<button class="approve" type="button">Approve</button>'],
+          [person("MA", "Maly An", "OPS-229 • Operations"), "Personal Leave", "May 22", "1", '<span class="status pending">Pending</span>', '<button class="reject" type="button">Reject</button>'],
+        ], "Leave Type")}
+        <aside class="side-stack">
+          ${sidePanel("Leave Balance", "Monthly leave summary by category.", `<div class="payroll-details payroll">
+            <div class="detail-row"><span>Annual leave</span><b>23 days</b></div>
+            <div class="detail-row"><span>Sick leave</span><b>8 days</b></div>
+            <div class="detail-row"><span>Personal leave</span><b>3 days</b></div>
+          </div>`)}
+          ${sidePanel("Approval Notes", "What team leads need to verify.", approvalItems([
+            ["Dara Vann", "Medical certificate", "Sick leave request requires supporting document."],
+            ["Maly An", "Coverage check", "Operations shift coverage must be confirmed."],
+          ]))}
+        </aside>
+      `;
+    }
+
+    function overtimeView() {
+      return `
+        ${tablePanel("Overtime Records", "Review hours and payroll impact.", ["Employee", "Date", "Reason", "Hours", "Rate", "Status"], [
+          [person("CN", "Chan Nita", "OPS-176 • Operations"), "May 14", "Inventory deployment", "1.3", "1.5x", '<span class="status pending">Pending</span>'],
+          [person("SA", "Sokha Am", "HR-104 • Operations"), "May 13", "Monthly stock close", "0.5", "1.5x", '<span class="status approved">Approved</span>'],
+          [person("PV", "Pisey Vong", "TEC-410 • Technology"), "May 12", "Server maintenance", "3.0", "2x", '<span class="status approved">Approved</span>'],
+        ], "Overtime")}
+        <aside class="side-stack">
+          ${sidePanel("Payroll Impact", "Estimated overtime payment.", `<div class="payroll-details payroll">
+            <div class="detail-row"><span>Approved overtime</span><b>56.3 hrs</b></div>
+            <div class="detail-row"><span>Pending overtime</span><b>18.2 hrs</b></div>
+            <div class="detail-row"><span>Estimated cost</span><b>$1,840</b></div>
+          </div>`)}
+          ${sidePanel("Pending Overtime", "Requests waiting for approval.", approvalItems([
+            ["Chan Nita", "1.3 hours overtime", "Submitted for inventory system deployment."],
+          ]))}
+        </aside>
+      `;
+    }
+
+    function payrollView() {
+      return `
+        ${tablePanel("Payroll Sync Checklist", "Items must be resolved before final salary processing.", ["Item", "Records", "Ready", "Blocked", "Owner", "Status"], [
+          ["Attendance records", "236", "218", "18", "HR Admin", '<span class="status pending">Review</span>'],
+          ["Approved leave", "31", "31", "0", "Team Leads", '<span class="status synced">Synced</span>'],
+          ["Overtime hours", "74.5", "56.3", "18.2", "Team Leads", '<span class="status pending">Pending</span>'],
+          ["Absence deductions", "5", "3", "2", "HR Admin", '<span class="status late">Check</span>'],
+        ], "Checklist")}
+        <aside class="side-stack">
+          ${sidePanel("Payroll Integration", "Attendance data prepared for salary processing.", payrollPanel())}
+          ${sidePanel("Export History", "Recent payroll exports.", `<div class="payroll-details payroll">
+            <div class="detail-row"><span>April 2026</span><b>Completed</b></div>
+            <div class="detail-row"><span>March 2026</span><b>Completed</b></div>
+            <div class="detail-row"><span>February 2026</span><b>Completed</b></div>
+          </div>`)}
+        </aside>
+      `;
+    }
+
+    function reportsView() {
+      return `
+        ${tablePanel("Available Reports", "Generate reports for HR review and payroll support.", ["Report", "Purpose", "Period", "Format", "Status", "Action"], [
+          ["Monthly Attendance", "Payroll summary", "May 2026", "PDF / CSV", '<span class="status synced">Ready</span>', '<button class="view" type="button">Download</button>'],
+          ["Late Arrivals", "Discipline review", "May 2026", "PDF", '<span class="status pending">Review</span>', '<button class="view" type="button">Open</button>'],
+          ["Overtime Cost", "Payroll estimate", "May 2026", "CSV", '<span class="status synced">Ready</span>', '<button class="view" type="button">Export</button>'],
+          ["Absence Summary", "Deductions", "May 2026", "PDF", '<span class="status late">Check</span>', '<button class="view" type="button">Open</button>'],
+        ], "Report Type")}
+        <aside class="side-stack">
+          ${sidePanel("Report Schedule", "Automatic report generation.", `<div class="payroll-details payroll">
+            <div class="detail-row"><span>Daily summary</span><b>6:00 PM</b></div>
+            <div class="detail-row"><span>Weekly payroll draft</span><b>Friday</b></div>
+            <div class="detail-row"><span>Monthly final report</span><b>Month end</b></div>
+          </div>`)}
+          ${sidePanel("Quick Actions", "Most common report tasks.", `<div class="approval-list">
+            <button class="primary" type="button">▤ Generate Attendance Report</button>
+            <button class="secondary" type="button">↗ Export CSV</button>
+            <button class="secondary" type="button">Print Summary</button>
+          </div>`)}
+        </aside>
+      `;
+    }
+
+    function profilesView() {
+      return `
+        ${tablePanel("Employee Profiles", "Manage employee role, department, and approval owner.", ["Employee", "Department", "Role", "Team Lead", "Profile", "Payroll"], [
+          [person("SA", "Sokha Am", "HR-104 • Operations"), "Operations", "Coordinator", "Chan Nita", '<span class="status synced">Complete</span>', '<span class="status synced">Linked</span>'],
+          [person("DV", "Dara Vann", "FIN-221 • Finance"), "Finance", "Accountant", "Mina Phan", '<span class="status pending">Update</span>', '<span class="status synced">Linked</span>'],
+          [person("KL", "Kosal Lim", "TEC-311 • Technology"), "Technology", "Developer", "Pisey Vong", '<span class="status synced">Complete</span>', '<span class="status synced">Linked</span>'],
+          [person("CN", "Chan Nita", "OPS-176 • Operations"), "Operations", "Team Lead", "HR Admin", '<span class="status synced">Complete</span>', '<span class="status synced">Linked</span>'],
+        ], "Department")}
+        <aside class="side-stack">
+          ${sidePanel("Profile Health", "Missing information to fix.", `<div class="payroll-details payroll">
+            <div class="detail-row"><span>Missing phone number</span><b>2</b></div>
+            <div class="detail-row"><span>Missing bank detail</span><b>1</b></div>
+            <div class="detail-row"><span>Missing team lead</span><b>3</b></div>
+          </div>`)}
+          ${sidePanel("Department Summary", "Active employees by group.", `<div class="payroll-details payroll">
+            <div class="detail-row"><span>Operations</span><b>86</b></div>
+            <div class="detail-row"><span>Finance</span><b>34</b></div>
+            <div class="detail-row"><span>Sales</span><b>61</b></div>
+            <div class="detail-row"><span>Technology</span><b>55</b></div>
+          </div>`)}
+        </aside>
+      `;
+    }
+
+    function settingsView() {
+      return `
+        ${tablePanel("System Settings", "Configure attendance and payroll rules.", ["Setting", "Current Value", "Used For", "Owner", "Status", "Action"], [
+          ["Standard clock-in", "08:00 AM", "Late detection", "HR Admin", '<span class="status synced">Active</span>', '<button class="view" type="button">Edit</button>'],
+          ["Grace period", "30 minutes", "Late warning", "HR Admin", '<span class="status synced">Active</span>', '<button class="view" type="button">Edit</button>'],
+          ["Payroll cutoff", "Friday 5:00 PM", "Weekly export", "Payroll", '<span class="status synced">Active</span>', '<button class="view" type="button">Edit</button>'],
+          ["Approval flow", "Team Lead → HR", "Leave and overtime", "HR Admin", '<span class="status synced">Active</span>', '<button class="view" type="button">Edit</button>'],
+        ], "Rules")}
+        <aside class="side-stack">
+          ${sidePanel("Notifications", "Current alert settings.", `<div class="payroll-details payroll">
+            <div class="detail-row"><span>Late arrival alerts</span><b>On</b></div>
+            <div class="detail-row"><span>Approval reminders</span><b>On</b></div>
+            <div class="detail-row"><span>Payroll cutoff alert</span><b>On</b></div>
+          </div>`)}
+          ${sidePanel("Security", "Administrator access controls.", `<div class="payroll-details payroll">
+            <div class="detail-row"><span>Role</span><b>HR Administrator</b></div>
+            <div class="detail-row"><span>Data export</span><b>Allowed</b></div>
+            <div class="detail-row"><span>Audit log</span><b>Enabled</b></div>
+          </div>`)}
+        </aside>
+      `;
+    }
+
+    function setActiveSection(section, silent = false) {
+      navButtons.forEach((item) => {
+        item.classList.toggle("active", item.dataset.section === section);
+      });
+      pageTitle.textContent = section;
+      pageSubtitle.textContent = subtitles[section];
+      renderMetrics(section);
+      mainGrid.innerHTML = views[section]();
+      search.value = "";
+      if (!silent) showToast(`${section} opened`);
+    }
 
     function showToast(message) {
       toast.textContent = message;
@@ -1018,25 +1386,24 @@
 
     navButtons.forEach((button) => {
       button.addEventListener("click", () => {
-        navButtons.forEach((item) => item.classList.remove("active"));
-        button.classList.add("active");
-        pageTitle.textContent = button.dataset.section;
-        showToast(`${button.dataset.section} opened`);
+        setActiveSection(button.dataset.section);
       });
     });
 
     search.addEventListener("input", () => {
       const value = search.value.trim().toLowerCase();
+      const rows = document.querySelectorAll("#activeRows tr");
       rows.forEach((row) => {
         row.style.display = row.textContent.toLowerCase().includes(value) ? "" : "none";
       });
     });
 
-    document.querySelector("#approvalList").addEventListener("click", (event) => {
+    document.addEventListener("click", (event) => {
       const button = event.target.closest("button");
       if (!button) return;
 
       const item = button.closest(".approval-item");
+      if (!item) return;
       const employee = item.querySelector("b").textContent;
       const badge = item.querySelector(".status");
 
@@ -1058,11 +1425,14 @@
     });
 
     document.querySelector("#reportButton").addEventListener("click", () => {
+      setActiveSection("Reports");
       showToast("Monthly attendance report generated");
     });
 
-    document.querySelector("#syncButton").addEventListener("click", () => {
-      showToast("Payroll data synchronized");
+    document.addEventListener("click", (event) => {
+      if (event.target.closest("#syncButton")) {
+        showToast("Payroll data synchronized");
+      }
     });
 
     document.querySelector("#shortcutButton").addEventListener("click", () => {
@@ -1082,14 +1452,15 @@
 
       if (event.ctrlKey && event.key.toLowerCase() === "p") {
         event.preventDefault();
-        pageTitle.textContent = "Payroll Integration";
-        showToast("Payroll page opened");
+        setActiveSection("Payroll Integration");
       }
 
       if (event.key === "Escape") {
         showToast("Pop-up closed");
       }
     });
+
+    setActiveSection("Dashboard Overview", true);
   </script>
 </body>
 </html>
